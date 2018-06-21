@@ -28,6 +28,8 @@ namespace Morte
             X = RandomGen.NextDouble(Game.Level.Left, Game.Level.Right);
             Mass = 2.5;
 
+            Tag = "lootbox";
+
             //Shape = Shape.CreateRegularPolygon(5);
         }
 
@@ -41,5 +43,7 @@ namespace Morte
             //Add(fx);
         }
     }
+
+
 
 }

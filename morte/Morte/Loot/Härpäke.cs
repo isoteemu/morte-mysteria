@@ -14,12 +14,17 @@ namespace Morte.Loot
     public class Härpäke : FysiikkaObjekti
     {
         public const double ZOOMAUKSEN_KESTO = 1.7;
-
+        
         public Sankari Poimija;
 
         public event Action OnPaljastus;
         public event Action OnPoiminta;
         public event Action OnKlikattattaessa;
+
+        /// <summary>
+        /// If object is dropped, can it be marked as dead.
+        /// </summary>
+        protected bool CanBeDead = false;
 
         public Härpäke(Image sprite) : base(sprite)
         {
@@ -38,7 +43,7 @@ namespace Morte.Loot
         }
 
         public void KlikkausTapahtuma() {
-            Debug.WriteLine("!!! Klikattu härpäkettä");
+            Debug.WriteLine("Klikattu härpäkettä " + GetType().Name);
             OnKlikattattaessa?.Invoke();
         }
 
@@ -94,10 +99,30 @@ namespace Morte.Loot
         {
             OnKlikattattaessa?.Invoke();
         }
+
+        public override void Update(Time time)
+        {
+            if (CanBeDead && Velocity == Vector.Zero && Parent == null)
+            {
+                // Mark it as dead.
+                Debug.WriteLine("Dead Härpäke: " + GetType().Name);
+                //IgnoresPhysicsLogics = true;
+                IgnoresCollisionResponse = true;
+                IsUpdated = false;
+            }
+            base.Update(time);
+        }
     }
 
     public class PudotettavaHärpäke : Härpäke
     {
+        public const double VELOCITY_TOLERANCE = 5;
+
+        /// <summary>
+        /// Voima jonka liikkeen esine kestää. Pienemmät resetoidaan nollaksi.
+        /// </summary>
+        protected double VelocityTolerance = VELOCITY_TOLERANCE;
+
         public event Action OnPudotettaessa;
 
         public PudotettavaHärpäke(Image sprite) : base(sprite)
@@ -147,6 +172,7 @@ namespace Morte.Loot
                 IsVisible = true;
                 Game.Add(this);
                 IgnoresGravity = false;
+                CanBeDead = true;
 
                 OnPudotettaessa?.Invoke();
             });
@@ -156,8 +182,8 @@ namespace Morte.Loot
         {
             if (Parent != null && Velocity != Vector.Zero)
             {
-                Pudota();
-
+                if(Velocity.Magnitude >= VelocityTolerance)
+                    Pudota();
             }
             base.Update(time);
         }

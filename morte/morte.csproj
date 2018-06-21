@@ -87,6 +87,7 @@
     <Compile Include="morte.cs" />
     <Compile Include="Morte\Aseet\IAse.cs" />
     <Compile Include="Morte\Aseet\Kranaatti.cs" />
+    <Compile Include="Morte\Aseet\Moottorisaha.cs" />
     <Compile Include="Morte\Aseet\Oksennus.cs" />
     <Compile Include="Morte\FX\Rainbowstain.cs" />
     <Compile Include="Morte\FX\Bloodenstain.cs" />
@@ -96,6 +97,7 @@
     <Compile Include="Morte\Loot\Hattu.cs" />
     <Compile Include="Morte\Loot\Härpäke.cs" />
     <Compile Include="Morte\Loot\Kannabis.cs" />
+    <Compile Include="Morte\Loot\Saha.cs" />
     <Compile Include="Morte\Loot\Sieni.cs" />
     <Compile Include="Morte\Loot\Viini.cs" />
     <Compile Include="Morte\laajennukset.cs" />

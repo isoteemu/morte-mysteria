@@ -18,11 +18,15 @@ namespace Morte.Loot
         const double TÄRINÄ = 0.2;
         const double TÄRINÄ_TIMEOUT = 0.05;
 
+        const double LÖPÖÄ = 50;
+        const double LÖPÖÄ_KULUU_IDLE = 1;
+        const double LÖPÖÄ_KULUU_KÄYNNISSÄ = 10;
+
         /// <summary>
         /// Sahan liikkumisen nopeus.
         /// "Nopeus (paikkayksikköä sekunnissa) jolla liikutaan."
         /// </summary>
-        const double LIIKENOPEUS = 200;
+        const double LIIKENOPEUS = 220;
 
         const double MASSA_KÄYNNISSÄ = 400;
         const double MASSA_IDLE = 7;
@@ -34,7 +38,6 @@ namespace Morte.Loot
         const string SFX_IDLE = "idle";
         const string SFX_PÄRINÄ = "rev";
 
-
         static string AssetsPath = "loot/Saha/";
 
         protected double MaxEtäisyys = MAX_ETÄISYYS;
@@ -43,6 +46,9 @@ namespace Morte.Loot
         protected Moottorisaha Ase;
 
         public PeliObjekti Terä;
+        protected double Löpöä = LÖPÖÄ;
+
+        private Timer Polttomoottori = new Timer();
 
         private Sound SfxPärinä;
         private Sound SfxIdleä;
@@ -55,6 +61,11 @@ namespace Morte.Loot
 
             IsUpdated = true;
             Shape = Shape.Ellipse;
+
+            IgnoresGravity = true;
+
+            Polttomoottori.Interval = 1;
+            Polttomoottori.Timeout += KulutaLöpöä;
 
             SfxIdleä = Game.LoadSoundEffect(AssetsPath + SFX_IDLE).CreateSound();
             SfxIdleä.IsLooped = true;
@@ -88,24 +99,67 @@ namespace Morte.Loot
 
             var sfx = Game.LoadSoundEffect(AssetsPath + SFX_POIMI);
             sfx.Play();
-            double duration = sfx.Duration.Seconds + sfx.Duration.Milliseconds / 1000 + 0.2;
 
+            double duration = sfx.Duration.Seconds + sfx.Duration.Milliseconds / 1000 + 0.3;
             Timer.SingleShot( duration, () => SfxIdleä.Play());
+
+            Polttomoottori.Start();
         }
 
         public void PoistaAse()
         {
+            Poimija = null;
             IgnoresGravity = false;
+            Polttomoottori.Stop();
+
 
             Ase?.Pysäytä();
             Morte.Instance.Ase.Remove(Ase);
+
+            SfxIdleä.Stop();
+            SfxPärinä.Stop();
+        }
+
+        public void KulutaLöpöä()
+        {
+            if(Löpöä <= 0)
+            {
+                Pudota();
+                return;
+            }
+
+            Löpöä -= (Käynnissä) ? LÖPÖÄ_KULUU_KÄYNNISSÄ : LÖPÖÄ_KULUU_IDLE;
+        }
+
+        public void Pudota()
+        {
+            if(Käynnissä) Rauhoitu();
+            Debug.WriteLine("Hylätään ase");
+            var f = RandomGen.NextDouble(1000, 2000) * Mass;
+            var impulssi = new Vector(f * Poimija.Suunta, f);
+            Poimija = null;
+            PoistaAse();
+            Hit(impulssi);
+
+            CanBeDead = true;
         }
 
         public void OsuVihuun(FysiikkaObjekti saha, Vihulainen vihu)
         {
             if(Käynnissä)
             {
-                Morte.Instance.Veriroiske.AddEffect(AbsolutePosition, VAHINKO);
+
+                // Yritä paikantaa sopiva veriroiskeen paikka.
+                var a = Angle.FromRadians(Math.Atan2(AbsolutePosition.Y - vihu.AbsolutePosition.Y, AbsolutePosition.X - vihu.AbsolutePosition.X));
+
+                // HACK Purkkaviritys.
+                var m = (double) (vihu.Width * vihu.Height) / (Width * Height);
+                var d = Vector.Distance(AbsolutePosition, vihu.AbsolutePosition) / m;
+
+                var roiske = AbsolutePosition - new Vector(d * a.Cos, d * a.Sin);
+
+                Morte.Instance.Veriroiske.AddEffect(roiske, VAHINKO);
+
                 vihu.Vahingoita(VAHINKO);
             }
         }

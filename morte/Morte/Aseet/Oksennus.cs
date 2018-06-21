@@ -44,7 +44,6 @@ namespace Morte.Aseet
 
         public void Palleroi(Morte peli)
         {
-            Debug.WriteLine("Pallerointi");
             for (int i = 0; i < Palloja; i++)
             {
                 double scale = RandomGen.NextDouble(0.5, 1.5);

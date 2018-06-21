@@ -11,7 +11,7 @@ namespace Morte.Wädgetti
     /// Maksimihelat == kristitty.
     /// Nollahelat == larppaaja.
     /// </summary>
-    public class Risti : PeliObjekti
+    public class Risti : Vitkutin
     {
         /// <summary>
         /// Hahmo johon risti on sidottu.
@@ -57,7 +57,7 @@ namespace Morte.Wädgetti
             Add(Palkki);
 
             // Sävytä kun lapsiobjektikin (Palkki) on lisätty peliin
-            Palkki.AddedToGame += () => Sävytä(Color.Red, true);
+            //Palkki.AddedToGame += () => Sävytä(Color.Red, true);
         }
 
         /// <summary>

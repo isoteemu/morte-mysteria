@@ -123,6 +123,7 @@ namespace Morte.Wädgetti
             OnStop?.Invoke();
             base.Stop();
         }
+
         public override void Update(Time time)
         {
             XNATexture2D _videoTexture = null;

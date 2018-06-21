@@ -16,7 +16,7 @@ using Morte.FX;
 
 using System.Net;
 using System.Collections.Specialized;
-
+using System.Threading.Tasks;
 
 /// @author Teemu Autto
 /// @version 04.04.2018
@@ -45,8 +45,8 @@ namespace Morte
         /// <summary>
         /// Kuinka kauas pelaajasta vihulaisia voi lahdata
         /// </summary>
-        private int Oletus_Kantama = 300;
-        public int Kantama;
+        const int OLETUS_KANTAMA = 300;
+        public int Kantama = OLETUS_KANTAMA;
 
         /// <summary>
         /// Vahinkopisteiden hinta spesiaaliasetta käytettäessä.
@@ -91,7 +91,14 @@ namespace Morte
             (0.1, "Morte.Loot.Viini"),
             (0.1, "Morte.Loot.Sieni"),
             (0.15, "Morte.Loot.Kannabis"),
+            (0.05, "Morte.Loot.Saha"),
         };
+
+        const string SPRITE_LOOTBOX = "loot/box";
+        const string SPRITE_LOOTBOX_CRUSHED = "loot/box-crushed";
+
+        const string INTRO_VIDEO = "intro";
+        const double INTRO_LEIKKAA_LOPUSTA = 3.0;
 
         public const int VASEN = -1;
         public const int OIKEA = 1;
@@ -104,7 +111,10 @@ namespace Morte
         public const int TASO_PAPPI = TASO_OLETUS - 1;
         public const int TASO_EDUSTA = 3;
 
+        public Action TapahtumaLataa;
+        public Action TapahtumaAlusta;
         public Action TapahtumaResetoi;
+        public Action TapahtumaKäynnistä;
 
         /// <summary>
         /// Jypelin instanssi. Muutetaan se muutaman näppäimen säästämiseksi tässä oikeaan luokkaan.
@@ -142,13 +152,8 @@ namespace Morte
 
         protected Image LootBoxSprite;
 
-        /// <summary>
-        /// Introvideo Containerissa.
-        /// </summary>
-        private const string IntroVideonNimi = "intro";
-        private const double Intro_LeikkaaLopusta = 4.0;
-
         protected VideoWädgetti IntroVideo;
+        protected Task PelinLataaja;
 
         /// <summary>
         /// Sisäinen toggle -muuttuja introvideon statuksen seuraamiseen.
@@ -177,21 +182,12 @@ namespace Morte
         }
 
         /// <summary>
-        /// Jypelin hookki jonka ainaka kamat pitäisi ladata.
-        /// </summary>
-        /// <remarks>
-        /// Kuitenkin itse varsinainen lataus tehdään alkunäyttöjen aikana.
-        /// </remarks>
-        protected override void LoadContent()
-        {
-            base.LoadContent();
-        }
-
-        /// <summary>
         /// Alusta peli.
         /// </summary>
         public override void Begin()
         {
+            base.Begin();
+
             SetWindowSize(ikkunan_leveys, ikkunan_korkeus, false);
             Screen.Width = ikkunan_leveys;
             Screen.Height = ikkunan_korkeus;
@@ -202,25 +198,30 @@ namespace Morte
 
             PhoneBackButton.Listen(ConfirmExit, "Lopeta peli");
 
-            Keyboard.Listen(Key.Escape, ButtonState.Pressed, delegate()
-            {
-                if (!_introvideo && IntroVideo != null)
-                    IntroVideo.Stop();
-                else
-                    ConfirmExit();
-            }, "Lopeta peli");
+            TapahtumaAlusta  += AlustaTaso;
+
+            TapahtumaLataa   += LataaShitit;
+            TapahtumaLataa   += LataaPelaaja;
+            TapahtumaLataa   += LataaTaustat;
+            TapahtumaLataa   += LataaHUD;
 
             TapahtumaResetoi += AlustaAseet;
             TapahtumaResetoi += AlustaMusiikki;
+            TapahtumaResetoi += AlustaVihuSpawner;
             TapahtumaResetoi += () => Risti.Päivitä();
 
-            AlustaTaso();
-            AlkuNäyttö();
-            LataaShitit();
+            TapahtumaKäynnistä += AsetaOhjain;
+            TapahtumaKäynnistä += KäynnistäVihuSpawner;
+            TapahtumaKäynnistä += ResetoiPelaaja;
 
-            base.Begin();
-            
+            PelinLataaja = Task.Factory.StartNew(LataaPeli);
+
+            TapahtumaAlusta?.Invoke();
+
+            // Peli käynnistetään alkunäyttöjen päätyttyä.
+            AlkuNäyttö();
         }
+
 
         #region Lataus
         /// <summary>
@@ -238,9 +239,24 @@ namespace Morte
             Gravity = new Vector(0, -700);
         }
 
+        public void LataaPelaaja()
+        {
+            // Luo pelaajan hahmo, ja tiputa maailmaan.
+            Pelaaja = new Pappi();
+
+            Pelaaja.OnKuolema += GameOver;
+
+            // Tallenna pelaajan oletuskoko
+            if (Oletus_Koko == Vector.Zero)
+                Oletus_Koko = Pelaaja.Size;
+
+            Add(Pelaaja, TASO_PAPPI);
+        }
+
         /// <summary>
         /// Lataa omat objektit peliin, ideaalisti alkunäyttöjen aikana.
         /// </summary>
+        /// TODO: Restructuroi
         public void LataaShitit()
         {
             Kursori = new Kursori()
@@ -256,31 +272,20 @@ namespace Morte
                 Gravity = Gravity
             };
             Add(Veriroiske, TASO_EDUSTA);
-
-            AlustaTaustat();
-
+            
             Kamera = new Kamerointi();
             // Käynnistä kamera myöhemmin, alkunäyttöjen päätyttyä.
             Kamera.IsUpdated = false;
+            TapahtumaKäynnistä += () => Kamera.IsUpdated = true;
+
             Add(Kamera, TASO_EDUSTA);
 
-            // Luo pelaajan hahmo, ja tiputa maailmaan.
-            Pelaaja = new Pappi();
+            LootBoxSprite = Game.LoadImage(SPRITE_LOOTBOX);
 
-            Pelaaja.OnKuolema += GameOver;
+        }
 
-            // Tallenna pelaajan oletuskoko
-            if (Oletus_Koko == Vector.Zero)
-                Oletus_Koko = Pelaaja.Size;
-
-            Add(Pelaaja, TASO_PAPPI);
-
-            // Jos alkunäyttö skipataan liian nopeasti, kaikki ei ole ollut valmista.
-            if (_introvideo)
-                ResetoiPelaaja();
-
-            LootBoxSprite = Game.LoadImage("loot/box");
-
+        void LataaHUD()
+        {
             // LUD taso ja sille sälää.
             HUD = Layer.CreateStaticLayer();
 
@@ -293,11 +298,12 @@ namespace Morte
             HUD.Objects.Add(Risti);
 
             var reunus = new Borderi();
-
             HUD.Objects.Add(reunus);
+
+            TapahtumaKäynnistä += () => Layers.Add(HUD);
         }
 
-        void AlustaTaustat()
+        void LataaTaustat()
         {
             Level.BackgroundColor = new Color(133, 31, 10);
 
@@ -321,11 +327,22 @@ namespace Morte
                 m = (double)(_tausta_img.Width - Screen.Right) / Level.Width;
                 Layers[-3 + i].RelativeTransition = new Vector(m, Math.Min(m, 1));
             }
+        }
 
+        protected void LataaPeli()
+        {
+            Debug.WriteLine("LataaPeli");
+            TapahtumaLataa?.Invoke();
+            Debug.WriteLine("Lataukset suoritettu");
+            AlkuNäyttöSkipattavissa();
+            Debug.WriteLine("Alkunäyttö skipattavissa.");
         }
 
         #endregion
 
+        /// <summary>
+        /// Alustaa erikoisaseiden listan.
+        /// </summary>
         protected void AlustaAseet()
         {
             if (Ase == null)
@@ -337,16 +354,11 @@ namespace Morte
 
             // Lisää oletusase
             Ase.Add(new Kranaatti());
-            Ase.Add(new Oksennus());
-
-            Morte.Instance.Ase.Remove(
-                Morte.Instance.Ase.Last(x => x.GetType().FullName == "Morte.Aseet.Oksennus")
-            );
 
         }
 
         /// <summary>
-        /// 
+        /// Taustamusiikkihärpäke.
         /// </summary>
         /// TODO: Lue volume jostain.
         protected void AlustaMusiikki()
@@ -359,18 +371,40 @@ namespace Morte
             MusiikkiInstanssi.Käynnistä();
         }
 
-        public void Käynnistä()
+        /// <summary>
+        /// Alustaa / resetoi vihuspawnerin.
+        /// </summary>
+        void AlustaVihuSpawner()
         {
-            TapahtumaResetoi?.Invoke();
+            if (_VihuSpawner != null)
+            {
+                _VihuSpawner.Stop();
+                _VihuSpawner.Reset();
+            }
+            else
+            {
+                _VihuSpawner = new Timer();
+                _VihuSpawner.Timeout += VihuSpawner;
+                // Interval asetetaan VihuSpawnerissa.
+            }
 
-            System.GC.Collect();
-         
-            Layers.Add(HUD);
+            Avg_Lifetime = TimeSpan.FromSeconds(VIHUSPAWNER_VIIVE);
+        }
+
+        void KäynnistäVihuSpawner()
+        {
+#if (!DEBUG)
+            VihuSpawner();
+#endif
+        }
+
+        /// <summary>
+        /// Asettaa ohjaimet
+        /// </summary>
+        void AsetaOhjain()
+        {
 
             Mouse.ListenMovement(0.0, TarkkaileHiirtä, "Tarkkaile Hiiren etäisyyttä hahmosta");
-
-            Kursori.IsVisible = true;
-            Kamera.IsUpdated = true;
 
             Keyboard.Listen(Key.P, ButtonState.Released, Paussi, "Pysäyttää pelin");
 
@@ -386,77 +420,49 @@ namespace Morte
 
             Keyboard.Listen(Key.H, ButtonState.Released, () => AvaaPistelista(), "Avaa parhaiden pisteiden lista");
 
-#if DEBUG
-
-            Keyboard.Listen(Key.K, ButtonState.Released, GameOver, "Game Over");
-
-            Keyboard.Listen(Key.Q, ButtonState.Down, delegate(Sankari p) { p.AngularVelocity += 1; Debug.WriteLine("Kierretään vasemmalle"); }, "Pyöritä Pelaajaa vasemmalle", Pelaaja);
-            Keyboard.Listen(Key.E, ButtonState.Down, delegate (Sankari p) { p.AngularVelocity -= 1; Debug.WriteLine("Kierretään oikealle"); }, "Pyöritä Pelaajaa oikealle", Pelaaja);
-            Keyboard.Listen(Key.W, ButtonState.Down, delegate (Sankari p) { p.Oikaise(); Debug.WriteLine("Oikaistaan pelaajaa"); }, "Oikaise pelaajaa", Pelaaja);
-
-            Keyboard.Listen(Key.D0, ButtonState.Released, VihuSpawner, "Käynnistä vihuspawner");
-
-            // Pikanäppäimet vihujen spawnaamiseen.
-            for (var i = 0; i < Math.Min(Vihulista.Count(), 9); i++)
-            {
-                Keyboard.Listen(Key.D1 + i, ButtonState.Released, AmpiaisTehdas, "Uusi vihu " + Vihulista[i], i);
-            }
-
-            for (var i = 0; i < Math.Min(Lootboxit.Count(), 9); i++)
-            {
-                Keyboard.Listen<string>(Key.NumPad1 + i, ButtonState.Released, PudotaLootBox, "Pudota uusi lootbox "+ Lootboxit[i].Item2, Lootboxit[i].Item2);
-            }
-
-            var mwtimer = new Timer();
-            mwtimer.Interval = 0.1;
-            mwtimer.Timeout += delegate ()
-            { 
-                Camera.ZoomFactor = 1 * Camera.ZoomFactor + (double) Mouse.WheelChange / 10;
-            };
-            mwtimer.Start();
-
-#endif
             // Aseta ase
             Keyboard.Listen(Key.Space, ButtonState.Pressed, LaukaiseAse, "Laukaise Erikoisase");
             Keyboard.Listen(Key.Space, ButtonState.Released, PysäytäAse, "Lopeta Erikoisase");
 
-            if (_VihuSpawner != null) {
-                _VihuSpawner.Stop();
-                _VihuSpawner.Reset();
-            } else
-            {
-                _VihuSpawner = new Timer();
-                _VihuSpawner.Timeout += VihuSpawner;
-            }
-#if (!DEBUG)
-            VihuSpawner();
-#endif
-
-            ;
+            Kursori.IsVisible = true;
         }
 
         #region Alkunäytöt
 
         /// <summary>
-        /// Luo alkunäytöille video-objekti.
+        /// Aseta tapahtumat alkunäytölle sen skippaamiseksi.
+        /// </summary>
+        void AlkuNäyttöSkipattavissa()
+        {
+            Keyboard.Listen(Key.Escape, ButtonState.Pressed, delegate ()
+            {
+                if (!_introvideo && IntroVideo != null)
+                    LopetaAlkuNäyttö();
+            }, "Ohita Alkunäyttö");
+
+            IntroVideo.OnKlikattaessa += LopetaAlkuNäyttö;
+        }
+        
+        /// <summary>
+        /// Toista alkunäytöt.
         /// </summary>
         void AlkuNäyttö()
         {
             Game.SmoothTextures = false;
+
             IntroVideo = new VideoWädgetti(Screen.Width, Screen.Height)
             {
-                VideoTiedosto = IntroVideonNimi,
-                Päättyminen = Intro_LeikkaaLopusta,
+                VideoTiedosto = INTRO_VIDEO,
+                Päättyminen = INTRO_LEIKKAA_LOPUSTA,
             };
-
+            
             IntroVideo.Y = Screen.Top + IntroVideo.Height / 2;
 
-            IntroVideo.OnStop += LopetaAlkuNäyttö;
             IntroVideo.OnPäättymässä += AlkuNäyttöOhi;
 
             IntroVideo.OnStop += () => Debug.WriteLine("Intro OnStop");
             IntroVideo.OnKlikattaessa += () => Debug.WriteLine("Intro OnKlikattaessa");
-            IntroVideo.OnKlikattaessa += AlkuNäyttöOhi;
+            //IntroVideo.OnKlikattaessa += AlkuNäyttöOhi;
 
             Camera.Position = IntroVideo.Position;
 
@@ -473,11 +479,10 @@ namespace Morte
             if (_introvideo) return;
             _introvideo = true;
 
+            Debug.WriteLine("AlkuNäyttöOhi()");
             IntroVideo.Volume = 0d;
 
-            Debug.WriteLine("Alkunäyttö päättymässä");
-            ResetoiPelaaja();
-            IntroVideo.Tweetteri.Tween(Camera, new { Y = 0 }, (float)IntroVideo.Päättyminen).Ease(Ease.QuadInOut).OnComplete(IntroVideo.Stop);
+            IntroVideo.Tweetteri.Tween(Camera, new { Y = 0 }, (float)IntroVideo.Päättyminen).Ease(Ease.QuadInOut);
         }
 
         /// <summary>
@@ -485,30 +490,65 @@ namespace Morte
         /// </summary>
         void LopetaAlkuNäyttö()
         {
-            if (!_introvideo)
-                ResetoiPelaaja();
-
             _introvideo = true;
-
             // Varmista että tweening on ehtinyt päättyä ennen elementin poistoa.
-            Timer.SingleShot(1, delegate ()
-             {
-                 IntroVideo.Tweetteri.TargetCancelAndComplete(Camera);
-                 IntroVideo.Tweetteri.Update(0f);
-                 IntroVideo.Destroy();
-             });
-            
-            Camera.Y = 0;
+            IntroVideo.Tweetteri.TargetCancel(Camera);
+            IntroVideo.Tweetteri.Update(0f);
+            IntroVideo.Destroy();
 
-            // Jos alkunäytöt ovat skipattu, pudota pelaaja.
+            Camera.Y = 0;
 
             IsMouseVisible = true;
             Game.SmoothTextures = true;
+
+            if(PelinLataaja != null)
+                PelinLataaja.Wait();
 
             Käynnistä();
         }
 
         #endregion
+
+
+        public void Käynnistä()
+        {
+            Debug.WriteLine("Resetoidaan peli.");
+            TapahtumaResetoi?.Invoke();
+            System.GC.Collect();
+
+#if DEBUG
+
+            Keyboard.Listen(Key.K, ButtonState.Released, GameOver, "Game Over");
+
+            Keyboard.Listen(Key.Q, ButtonState.Down, delegate (Sankari p) { p.AngularVelocity += 1; Debug.WriteLine("Kierretään vasemmalle"); }, "Pyöritä Pelaajaa vasemmalle", Pelaaja);
+            Keyboard.Listen(Key.E, ButtonState.Down, delegate (Sankari p) { p.AngularVelocity -= 1; Debug.WriteLine("Kierretään oikealle"); }, "Pyöritä Pelaajaa oikealle", Pelaaja);
+            Keyboard.Listen(Key.W, ButtonState.Down, delegate (Sankari p) { p.Oikaise(); Debug.WriteLine("Oikaistaan pelaajaa"); }, "Oikaise pelaajaa", Pelaaja);
+
+            Keyboard.Listen(Key.D0, ButtonState.Released, VihuSpawner, "Käynnistä vihuspawner");
+
+            // Pikanäppäimet vihujen spawnaamiseen.
+            for (var i = 0; i < Math.Min(Vihulista.Count(), 9); i++)
+            {
+                Keyboard.Listen(Key.D1 + i, ButtonState.Released, AmpiaisTehdas, "Uusi vihu " + Vihulista[i], i);
+            }
+
+            for (var i = 0; i < Math.Min(Lootboxit.Count(), 9); i++)
+            {
+                Keyboard.Listen<string>(Key.NumPad1 + i, ButtonState.Released, PudotaLootBox, "Pudota uusi lootbox " + Lootboxit[i].Item2, Lootboxit[i].Item2);
+            }
+
+            var mwtimer = new Timer();
+            mwtimer.Interval = 0.1;
+            mwtimer.Timeout += delegate ()
+            {
+                Camera.ZoomFactor = 1 * Camera.ZoomFactor + (double)Mouse.WheelChange / 10;
+            };
+            mwtimer.Start();
+
+#endif
+            Debug.WriteLine("Käynnistetään peli");
+            TapahtumaKäynnistä?.Invoke();
+        }
 
         /// <summary>
         /// Aloita uusi peli. Resetoi parametrit
@@ -531,7 +571,6 @@ namespace Morte
                 }
             }
 
-            Avg_Lifetime = TimeSpan.FromSeconds(VIHUSPAWNER_VIIVE);
             Manattu = 0;
             Pelaaja.X = 0;
 
@@ -557,7 +596,9 @@ namespace Morte
             Pelaaja.Shape = Shape.Hexagon;
             Pelaaja.Kuollut = false;
 
-            Kantama = Oletus_Kantama;
+            Pelaaja.AddCollisionIgnoreGroup(Sankari.IGNORE_ID);
+
+            Kantama = OLETUS_KANTAMA;
 
             // Poista loot itemit
             for (int i = 0; i < Pelaaja.ObjectCount; i++) {
@@ -584,7 +625,7 @@ namespace Morte
 
         public void TarkkaileHiirtä()
         {
-            double etäisyys = Vector.Distance(Mouse.PositionOnWorld, Pelaaja.Position);
+            double etäisyys = Vector.Distance(Mouse.PositionOnWorld, Pelaaja.AbsolutePosition);
 
             if (IsPaused == true)
                 Kursori.OOR = false;
@@ -673,7 +714,7 @@ namespace Morte
             {
                 vihu.Vahingoita(Pelaaja.Vahinko);
 
-                int veriroiskeita = vihu.MaxHitpoints / (vihu.MaxHitpoints - vihu.Hitpoints) * 29 + 1;
+                int veriroiskeita = ( 1 - (vihu.MaxHitpoints - vihu.Hitpoints) / vihu.MaxHitpoints ) * 29 + 1;
                 Veriroiske.AddEffect(Mouse.PositionOnWorld.X, Mouse.PositionOnWorld.Y, veriroiskeita);
             }
         }
@@ -699,9 +740,7 @@ namespace Morte
         }
 
 
-
-
-        #region Gambling
+#region Gambling
 
         /// <summary>
         /// Arvo uusi lootbox. Ehkä.
@@ -735,6 +774,7 @@ namespace Morte
             AddCollisionHandler<Sankari, Lootboxi>(Pelaaja, laatikko, AvaaLootBox);
             AddCollisionHandlerByTag<Lootboxi,Vihulainen>(laatikko, "vihu", LittaaLootbox);
             Add(laatikko, TASO_OLETUS + 1);
+
         }
 
         public void AvaaLootBox(Sankari pelaaja, Lootboxi laatikko)
@@ -745,13 +785,10 @@ namespace Morte
             laatikko.Stop();
             laatikko.Velocity = Vector.Zero;
 
-
             laatikko.Avaa();
 
             Pisteet += 1;
-
-            Debug.WriteLine("LootBox avattu!");
-
+            
             Type t = Type.GetType(laatikko.Sisältö);
             var lootti = (Härpäke)Activator.CreateInstance(t);
 
@@ -769,14 +806,26 @@ namespace Morte
 
         public void LittaaLootbox(Lootboxi laatikko, Vihulainen vihu)
         {
+            if (laatikko.Avattu)
+                return;
+
             Debug.WriteLine("Vihu " + vihu.GetType().Name + " törmäsi lootboxiin, littaa se");
             laatikko.Avattu = true;
-            ///laatikko.IgnoresPhysicsLogics = true;
-            laatikko.IgnoresCollisionResponse = true;
-            laatikko.Tweetteri.Tween(laatikko, new { Height = 1, Width = 1 }, 0.4f).Ease(Ease.BounceOut).OnComplete(laatikko.Destroy);
+
+            var top = laatikko.Top;
+            laatikko.Image = Game.LoadImage(SPRITE_LOOTBOX_CRUSHED);
+            laatikko.Y = top - laatikko.Image.Height / 2;
+            laatikko.Height = laatikko.Image.Height;
+
+            Timer.SingleShot(1, delegate() {
+                laatikko.IgnoresCollisionResponse = true;
+            });
+
+            //laatikko.Height = laatikko.Height / 10;
+
         }
 
-        #endregion
+#endregion
 
         public void AvaaPistelista(bool tallennetaan=false)
         {

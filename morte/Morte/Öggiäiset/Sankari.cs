@@ -21,11 +21,12 @@ namespace Morte
         public Vector Sijainti_Suu { get; set; }
 
         public Sankari(Image sprite) : base(sprite) {
-            MaxHitpoints = 666;
             Suunta = Morte.VASEN;
             Shape = Shape.Hexagon;
-            
-            CollisionIgnoreGroup = Sankari.IGNORE_ID;
+
+            MaxHitpoints = 666;
+
+            //CollisionIgnoreGroup = Sankari.IGNORE_ID;
         }
 
         public override void Vahingoita(int vahinko = 1)

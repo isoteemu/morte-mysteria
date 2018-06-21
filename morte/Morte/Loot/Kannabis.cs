@@ -58,7 +58,7 @@ namespace Morte.Loot
 
         public void PoistaAse()
         {
-            Ase.Pysäytä();
+            Ase?.Pysäytä();
             Morte.Instance.Ase.Remove(Ase);
         }
 
