@@ -103,7 +103,6 @@
     <Compile Include="Morte\laajennukset.cs" />
     <Compile Include="Morte\Musiikki.cs" />
     <Compile Include="Morte\Tulostaulu.cs" />
-    <Compile Include="Morte\VideoObjekti.cs" />
     <Compile Include="Morte\Wädgetti\Borderi.cs" />
     <Compile Include="Morte\Wädgetti\Kursori.cs" />
     <Compile Include="Morte\Wädgetti\Risti.cs" />

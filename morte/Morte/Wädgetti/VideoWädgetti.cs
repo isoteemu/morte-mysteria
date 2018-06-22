@@ -40,6 +40,14 @@ namespace Morte.Wädgetti
         public bool IsLooped { get => VideoPlayer.IsLooped; set => VideoPlayer.IsLooped = value; }
         public double Volume { get => VideoPlayer.Volume; set => VideoPlayer.Volume = (float) value; }
 
+        public bool IsPlaying
+        {
+            get
+            {
+                return VideoPlayer.State != XNAMedia.MediaState.Playing;
+            }
+        }
+
         /// <summary>
         /// Määrittele videotiedosto content -nimen perusteella. Säästyy XNA importilta, jota Jypelin kehittäjät
         /// haluavat estellä.
@@ -118,9 +126,9 @@ namespace Morte.Wädgetti
             {
                 VideoPlayer.Stop();
                 VideoPlayer.Dispose();
+                OnStop?.Invoke();
             }
 
-            OnStop?.Invoke();
             base.Stop();
         }
 
@@ -131,6 +139,7 @@ namespace Morte.Wädgetti
             if (State == XNAMedia.MediaState.Playing && VideoPlayer.State == XNAMedia.MediaState.Stopped)
             {
                 /// Video saapunut loppuun.
+                OnStop?.Invoke();
                 Stop();
             }
 

@@ -6,26 +6,23 @@ namespace Morte.Öggiäiset
 {
     public class Pappi : Sankari
     {
-
         public static Image[] Spritet = Game.LoadImages(new string[] {"pappi"});
 
         public Pappi() : base(Spritet[0])
         {
-            //Shape = Shape.Circle;
-            Mass = 120.0;
-            Restitution = 0.2;
-            AngularDamping = 0.98;
-            //CanRotate = true;
-
             Sijainti_Suu = new Vector(-2, 46);
             
             //IgnoresPhysicsLogics = true;
             //IgnoresCollisionResponse = true;
-            IgnoresExplosions = true;
 
             Add(LuoSilmä(Morte.VASEN));
             Add(LuoSilmä(Morte.OIKEA));
+        }
 
+        public override void LataaOletukset()
+        {
+            base.LataaOletukset();
+            Mass = 120;
         }
 
         public override void Liikuta()

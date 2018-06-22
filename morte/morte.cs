@@ -155,11 +155,6 @@ namespace Morte
         protected VideoWädgetti IntroVideo;
         protected Task PelinLataaja;
 
-        /// <summary>
-        /// Sisäinen toggle -muuttuja introvideon statuksen seuraamiseen.
-        /// </summary>
-        private bool _introvideo = false;
-
         protected ScoreList Pistelista = new ScoreList(10, false, 0);
         protected Tweener Tweetteri = new Tweener();
 
@@ -175,6 +170,9 @@ namespace Morte
         /// Pitäisi piilottaa, C# ei ole kovin luotettava tällaisessa.
         /// </remarks>
         private string TulostauluAvain = "Yksi lensi yli käenpesän.";
+
+        private bool _AlkuNäyttöOhi;
+        private bool _LopetaAlkuNäyttö;
 
         public Morte() : base()
         {
@@ -208,11 +206,10 @@ namespace Morte
             TapahtumaResetoi += AlustaAseet;
             TapahtumaResetoi += AlustaMusiikki;
             TapahtumaResetoi += AlustaVihuSpawner;
-            TapahtumaResetoi += () => Risti.Päivitä();
+            TapahtumaResetoi += ResetoiPelaaja;
 
             TapahtumaKäynnistä += AsetaOhjain;
             TapahtumaKäynnistä += KäynnistäVihuSpawner;
-            TapahtumaKäynnistä += ResetoiPelaaja;
 
             PelinLataaja = Task.Factory.StartNew(LataaPeli);
 
@@ -239,18 +236,20 @@ namespace Morte
             Gravity = new Vector(0, -700);
         }
 
+
         public void LataaPelaaja()
         {
+            // TODO
             // Luo pelaajan hahmo, ja tiputa maailmaan.
             Pelaaja = new Pappi();
 
+            Pelaaja.Y = Camera.Y + Screen.Top + Pelaaja.Height;
             Pelaaja.OnKuolema += GameOver;
 
             // Tallenna pelaajan oletuskoko
             if (Oletus_Koko == Vector.Zero)
                 Oletus_Koko = Pelaaja.Size;
 
-            Add(Pelaaja, TASO_PAPPI);
         }
 
         /// <summary>
@@ -265,7 +264,7 @@ namespace Morte
             };
             Add(Kursori, TASO_EDUSTA);
 
-            this.Veriroiske = new Bloodenstain(LoadImage("veripisara"), 100)
+            Veriroiske = new Bloodenstain(LoadImage("veripisara"), 100)
             {
                 MinScale = 6,
                 MaxScale = 12,
@@ -334,8 +333,6 @@ namespace Morte
             Debug.WriteLine("LataaPeli");
             TapahtumaLataa?.Invoke();
             Debug.WriteLine("Lataukset suoritettu");
-            AlkuNäyttöSkipattavissa();
-            Debug.WriteLine("Alkunäyttö skipattavissa.");
         }
 
         #endregion
@@ -403,7 +400,6 @@ namespace Morte
         /// </summary>
         void AsetaOhjain()
         {
-
             Mouse.ListenMovement(0.0, TarkkaileHiirtä, "Tarkkaile Hiiren etäisyyttä hahmosta");
 
             Keyboard.Listen(Key.P, ButtonState.Released, Paussi, "Pysäyttää pelin");
@@ -428,20 +424,6 @@ namespace Morte
         }
 
         #region Alkunäytöt
-
-        /// <summary>
-        /// Aseta tapahtumat alkunäytölle sen skippaamiseksi.
-        /// </summary>
-        void AlkuNäyttöSkipattavissa()
-        {
-            Keyboard.Listen(Key.Escape, ButtonState.Pressed, delegate ()
-            {
-                if (!_introvideo && IntroVideo != null)
-                    LopetaAlkuNäyttö();
-            }, "Ohita Alkunäyttö");
-
-            IntroVideo.OnKlikattaessa += LopetaAlkuNäyttö;
-        }
         
         /// <summary>
         /// Toista alkunäytöt.
@@ -461,14 +443,21 @@ namespace Morte
             IntroVideo.OnPäättymässä += AlkuNäyttöOhi;
 
             IntroVideo.OnStop += () => Debug.WriteLine("Intro OnStop");
+            IntroVideo.OnStop += LopetaAlkuNäyttö;
             IntroVideo.OnKlikattaessa += () => Debug.WriteLine("Intro OnKlikattaessa");
-            //IntroVideo.OnKlikattaessa += AlkuNäyttöOhi;
+            IntroVideo.OnKlikattaessa += AlkuNäyttöOhi;
 
             Camera.Position = IntroVideo.Position;
 
             IsMouseVisible = false;
 
             Add(IntroVideo, TASO_PAPPI);
+
+            Keyboard.Listen(Key.Escape, ButtonState.Pressed, delegate ()
+            {
+                if (IntroVideo != null)
+                    LopetaAlkuNäyttö();
+            }, "Ohita Alkunäyttö");
         }
 
         /// <summary>
@@ -476,13 +465,13 @@ namespace Morte
         /// </summary>
         protected void AlkuNäyttöOhi()
         {
-            if (_introvideo) return;
-            _introvideo = true;
+            if (_AlkuNäyttöOhi) return;
+            _AlkuNäyttöOhi = true;
 
             Debug.WriteLine("AlkuNäyttöOhi()");
             IntroVideo.Volume = 0d;
 
-            IntroVideo.Tweetteri.Tween(Camera, new { Y = 0 }, (float)IntroVideo.Päättyminen).Ease(Ease.QuadInOut);
+            IntroVideo.Tweetteri.Tween(Camera, new { Y = 0 }, (float)IntroVideo.Päättyminen).Ease(Ease.QuadInOut).OnComplete(IntroVideo.Stop);
         }
 
         /// <summary>
@@ -490,10 +479,17 @@ namespace Morte
         /// </summary>
         void LopetaAlkuNäyttö()
         {
-            _introvideo = true;
+            if (_LopetaAlkuNäyttö) return;
+            _LopetaAlkuNäyttö = true;
+
+            if (IntroVideo.IsPlaying)
+                IntroVideo.Stop();
+
+            Debug.WriteLine("LopetaAlkuNäyttö()");
+
             // Varmista että tweening on ehtinyt päättyä ennen elementin poistoa.
             IntroVideo.Tweetteri.TargetCancel(Camera);
-            IntroVideo.Tweetteri.Update(0f);
+            //IntroVideo.Tweetteri.Update(0f);
             IntroVideo.Destroy();
 
             Camera.Y = 0;
@@ -501,8 +497,9 @@ namespace Morte
             IsMouseVisible = true;
             Game.SmoothTextures = true;
 
-            if(PelinLataaja != null)
-                PelinLataaja.Wait();
+            PelinLataaja.Wait();
+
+            Debug.WriteLine(" -> Peli ladattu, käynnistetään.");
 
             Käynnistä();
         }
@@ -551,7 +548,8 @@ namespace Morte
         }
 
         /// <summary>
-        /// Aloita uusi peli. Resetoi parametrit
+        /// Aloita uusi peli.
+        /// Resetoi parametrit, ja pyyhkii tunnetut hyödykkeet tasolta.
         /// </summary>
         public void UusiPeli()
         {
@@ -559,23 +557,16 @@ namespace Morte
             for (var i = 0; i < it.Count(); i++)
             {
                 if (it[i] is Vihulainen)
-                {
-
-                    Debug.WriteLine("Tuhotaan vihulainen " + it[i].GetType().Name);
                     ((Vihulainen)it[i]).Destroy();
-
-                }
                 else if (it[i] is Lootboxi)
-                {
                     it[i].Destroy();
-                }
+                else if(it[i] is Härpäke)
+                    it[i].Destroy();
             }
 
             Manattu = 0;
-            Pelaaja.X = 0;
 
-            ResetoiPelaaja();
-            TapahtumaResetoi();
+            TapahtumaResetoi?.Invoke();
 
             IsPaused = false;
         }
@@ -586,17 +577,15 @@ namespace Morte
         /// TODO: Poista pelaaja, ja luo uudelleen.
         public void ResetoiPelaaja()
         {
-
-            Pelaaja.Hitpoints = Pelaaja.MaxHitpoints;
+            Pelaaja.X = 0;
             Pelaaja.Y = Camera.Y + Screen.Top + Pelaaja.Height;
-            Pelaaja.Angle = Angle.Zero;
-            Pelaaja.IgnoresPhysicsLogics = false;
-            Pelaaja.IgnoresCollisionResponse = false;
-            Pelaaja.Size = Oletus_Koko;
-            Pelaaja.Shape = Shape.Hexagon;
-            Pelaaja.Kuollut = false;
 
-            Pelaaja.AddCollisionIgnoreGroup(Sankari.IGNORE_ID);
+            Pelaaja.Size = Oletus_Koko;
+
+            Pelaaja.IgnoresPhysicsLogics = false;
+            Pelaaja.IsVisible = true;
+
+            Pelaaja.LataaOletukset();
 
             Kantama = OLETUS_KANTAMA;
 
@@ -605,6 +594,11 @@ namespace Morte
                 if (Pelaaja.Objects[i] is Härpäke)
                     Pelaaja.Objects[i].Destroy();
             }
+
+            if(! Pelaaja.IsAddedToGame)
+                Add(Pelaaja, TASO_PAPPI);
+
+            Risti.Päivitä();
 
             //Pelaaja.AngularVelocity = -8;
         }

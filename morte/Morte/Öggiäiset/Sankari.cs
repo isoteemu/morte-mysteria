@@ -17,16 +17,36 @@ namespace Morte
         /// Collision Ignore ID.
         /// </summary>
         public const int IGNORE_ID = 1;
+        public const int MAX_HITPOINTS = 666;
 
         public Vector Sijainti_Suu { get; set; }
-
+        
         public Sankari(Image sprite) : base(sprite) {
+
+            LataaOletukset();
+        }
+
+        public virtual void LataaOletukset()
+        {
+
             Suunta = Morte.VASEN;
             Shape = Shape.Hexagon;
 
-            MaxHitpoints = 666;
+            Kuollut = false;
+            MaxHitpoints = MAX_HITPOINTS;
+            Hitpoints = MaxHitpoints;
 
-            //CollisionIgnoreGroup = Sankari.IGNORE_ID;
+            Angle = Angle.Zero;
+            X = 0;
+
+            IgnoresPhysicsLogics = false;
+            IgnoresCollisionResponse = false;
+            Restitution = 0.2;
+            AngularDamping = 0.98;
+
+            IgnoresExplosions = true;
+
+            AddCollisionIgnoreGroup(IGNORE_ID);
         }
 
         public override void Vahingoita(int vahinko = 1)
