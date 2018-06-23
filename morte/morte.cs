@@ -264,6 +264,8 @@ namespace Morte
             };
             Add(Kursori, TASO_EDUSTA);
 
+            TapahtumaResetoi += () => Kursori.IsVisible = true;
+
             Veriroiske = new Bloodenstain(LoadImage("veripisara"), 100)
             {
                 MinScale = 6,
@@ -420,11 +422,40 @@ namespace Morte
             Keyboard.Listen(Key.Space, ButtonState.Pressed, LaukaiseAse, "Laukaise Erikoisase");
             Keyboard.Listen(Key.Space, ButtonState.Released, PysäytäAse, "Lopeta Erikoisase");
 
-            Kursori.IsVisible = true;
+#if DEBUG
+            Keyboard.Listen(Key.K, ButtonState.Released, GameOver, "Game Over");
+
+            Keyboard.Listen(Key.Q, ButtonState.Down, delegate (Sankari p) { p.AngularVelocity += 1; Debug.WriteLine("Kierretään vasemmalle"); }, "Pyöritä Pelaajaa vasemmalle", Pelaaja);
+            Keyboard.Listen(Key.E, ButtonState.Down, delegate (Sankari p) { p.AngularVelocity -= 1; Debug.WriteLine("Kierretään oikealle"); }, "Pyöritä Pelaajaa oikealle", Pelaaja);
+            Keyboard.Listen(Key.W, ButtonState.Down, delegate (Sankari p) { p.Oikaise(); Debug.WriteLine("Oikaistaan pelaajaa"); }, "Oikaise pelaajaa", Pelaaja);
+
+            Keyboard.Listen(Key.D0, ButtonState.Released, VihuSpawner, "Käynnistä vihuspawner");
+
+            // Pikanäppäimet vihujen spawnaamiseen.
+            for (var i = 0; i < Math.Min(Vihulista.Count(), 9); i++)
+            {
+                Keyboard.Listen(Key.D1 + i, ButtonState.Released, AmpiaisTehdas, "Uusi vihu " + Vihulista[i], i);
+            }
+
+            for (var i = 0; i < Math.Min(Lootboxit.Count(), 9); i++)
+            {
+                Keyboard.Listen<string>(Key.NumPad1 + i, ButtonState.Released, PudotaLootBox, "Pudota uusi lootbox " + Lootboxit[i].Item2, Lootboxit[i].Item2);
+            }
+
+            // Kameran zoomaus
+            var mwtimer = new Timer();
+            mwtimer.Interval = 0.1;
+            mwtimer.Timeout += delegate ()
+            {
+                Camera.ZoomFactor = 1 * Camera.ZoomFactor + (double)Mouse.WheelChange / 10;
+            };
+            mwtimer.Start();
+#endif
+
         }
 
         #region Alkunäytöt
-        
+
         /// <summary>
         /// Toista alkunäytöt.
         /// </summary>
@@ -468,7 +499,6 @@ namespace Morte
             if (_AlkuNäyttöOhi) return;
             _AlkuNäyttöOhi = true;
 
-            Debug.WriteLine("AlkuNäyttöOhi()");
             IntroVideo.Volume = 0d;
 
             IntroVideo.Tweetteri.Tween(Camera, new { Y = 0 }, (float)IntroVideo.Päättyminen).Ease(Ease.QuadInOut).OnComplete(IntroVideo.Stop);
@@ -484,8 +514,6 @@ namespace Morte
 
             if (IntroVideo.IsPlaying)
                 IntroVideo.Stop();
-
-            Debug.WriteLine("LopetaAlkuNäyttö()");
 
             // Varmista että tweening on ehtinyt päättyä ennen elementin poistoa.
             IntroVideo.Tweetteri.TargetCancel(Camera);
@@ -513,37 +541,6 @@ namespace Morte
             TapahtumaResetoi?.Invoke();
             System.GC.Collect();
 
-#if DEBUG
-
-            Keyboard.Listen(Key.K, ButtonState.Released, GameOver, "Game Over");
-
-            Keyboard.Listen(Key.Q, ButtonState.Down, delegate (Sankari p) { p.AngularVelocity += 1; Debug.WriteLine("Kierretään vasemmalle"); }, "Pyöritä Pelaajaa vasemmalle", Pelaaja);
-            Keyboard.Listen(Key.E, ButtonState.Down, delegate (Sankari p) { p.AngularVelocity -= 1; Debug.WriteLine("Kierretään oikealle"); }, "Pyöritä Pelaajaa oikealle", Pelaaja);
-            Keyboard.Listen(Key.W, ButtonState.Down, delegate (Sankari p) { p.Oikaise(); Debug.WriteLine("Oikaistaan pelaajaa"); }, "Oikaise pelaajaa", Pelaaja);
-
-            Keyboard.Listen(Key.D0, ButtonState.Released, VihuSpawner, "Käynnistä vihuspawner");
-
-            // Pikanäppäimet vihujen spawnaamiseen.
-            for (var i = 0; i < Math.Min(Vihulista.Count(), 9); i++)
-            {
-                Keyboard.Listen(Key.D1 + i, ButtonState.Released, AmpiaisTehdas, "Uusi vihu " + Vihulista[i], i);
-            }
-
-            for (var i = 0; i < Math.Min(Lootboxit.Count(), 9); i++)
-            {
-                Keyboard.Listen<string>(Key.NumPad1 + i, ButtonState.Released, PudotaLootBox, "Pudota uusi lootbox " + Lootboxit[i].Item2, Lootboxit[i].Item2);
-            }
-
-            var mwtimer = new Timer();
-            mwtimer.Interval = 0.1;
-            mwtimer.Timeout += delegate ()
-            {
-                Camera.ZoomFactor = 1 * Camera.ZoomFactor + (double)Mouse.WheelChange / 10;
-            };
-            mwtimer.Start();
-
-#endif
-            Debug.WriteLine("Käynnistetään peli");
             TapahtumaKäynnistä?.Invoke();
         }
 
