@@ -12,18 +12,16 @@ namespace Morte.Öggiäiset
 {
     public class Koura : Vihulainen
     {
-        
+
+        const float Hyökkimisen_Kesto = 0.7f;
+        const double MASSA_LISÄYS = 9999;
+
         public static Image[] Spritet = Game.LoadImages(new String[] { "vihulaiset/koura-auki", "vihulaiset/koura-kiinni" });
 
         protected double Pelaajan_Sijainti;
-        protected double Pelaajan_Massa;
-
-        const float Hyökkimisen_Kesto = 0.7f;
 
         protected bool Hyökkimässä = false;
         protected bool Napattu = false;
-
-
 
         public Koura() : this(Spritet[0]) { }
 
@@ -67,8 +65,7 @@ namespace Morte.Öggiäiset
         public override void VahingoitaSankaria(Öggiäinen sankari)
         {
             base.VahingoitaSankaria(sankari);
-
-
+            
             if (!Kuollut && ! Napattu)
             {
                 Debug.WriteLine("Koura sai napattua sankarin");
@@ -91,8 +88,7 @@ namespace Morte.Öggiäiset
             Napattu = true;
             Pelaajan_Sijainti = Pelaaja.X - X;
 
-            Pelaajan_Massa = Pelaaja.Mass;
-            Pelaaja.Mass = 9999;
+            Pelaaja.Mass += MASSA_LISÄYS;
         }
 
         protected void VapautaPelaaja()
@@ -101,9 +97,9 @@ namespace Morte.Öggiäiset
 
             Debug.WriteLine("Pelaajan Massa:" + Pelaaja.Mass);
 
-            if(Napattu && Pelaaja.Mass == 9999)
+            if(Napattu && Pelaaja.Mass >= MASSA_LISÄYS)
             {
-                Pelaaja.Mass = Pelaajan_Massa;
+                Pelaaja.Mass -= MASSA_LISÄYS;
             }
         }
 
