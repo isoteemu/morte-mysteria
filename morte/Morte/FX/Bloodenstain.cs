@@ -6,11 +6,10 @@ using Microsoft.Xna.Framework;
 namespace Morte.FX { 
 
     public class Bloodenstain : ExplosionSystem
-    {
-        public Vector Gravity = Vector.Zero;
-        
+    {   
         public Bloodenstain(Image kuva, int maxAmountOfParticles=100) : base(kuva, maxAmountOfParticles)
         {
+
         }
 
         protected override void InitializeParticles()
@@ -33,11 +32,8 @@ namespace Morte.FX {
         protected override void InitializeParticle(Particle p, Vector position)
         {
             base.InitializeParticle(p, position);
-            p.Acceleration += Gravity;
-            if (p.Acceleration.X > 0)
-                MirrorImage();
+            p.Acceleration += Morte.Instance.Gravity;
 
-            var minä = this;
         }
     }
 

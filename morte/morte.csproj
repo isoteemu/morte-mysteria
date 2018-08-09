@@ -92,6 +92,7 @@
     <Compile Include="Morte\FX\Rainbowstain.cs" />
     <Compile Include="Morte\FX\Bloodenstain.cs" />
     <Compile Include="Morte\FX\FX.cs" />
+    <Compile Include="Morte\Ikkunoita.cs" />
     <Compile Include="Morte\Kamerointi.cs" />
     <Compile Include="Morte\Lootboxi.cs" />
     <Compile Include="Morte\Loot\Hattu.cs" />
@@ -102,6 +103,7 @@
     <Compile Include="Morte\Loot\Viini.cs" />
     <Compile Include="Morte\laajennukset.cs" />
     <Compile Include="Morte\Musiikki.cs" />
+    <Compile Include="Morte\ScoresPHP.cs" />
     <Compile Include="Morte\Tulostaulu.cs" />
     <Compile Include="Morte\Wädgetti\Borderi.cs" />
     <Compile Include="Morte\Wädgetti\Kursori.cs" />

@@ -1039,3 +1039,9 @@
 /processorParam:TextureFormat=Color
 /build:loot/box-crushed.png
 
+#begin hail.mp3
+/importer:Mp3Importer
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:hail.mp3
+

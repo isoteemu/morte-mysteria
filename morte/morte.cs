@@ -13,6 +13,7 @@ using Morte.Öggiäiset;
 using Morte.Aseet;
 using Morte.Loot;
 using Morte.FX;
+using Morte.Ikkunoita;
 
 using System.Net;
 using System.Collections.Specialized;
@@ -38,9 +39,9 @@ namespace Morte
         /// <summary>
         /// Thease are the numbers defined by the gods of yesteryears. Do not question them!
         /// </summary>
-        private static int ikkunan_leveys = 700;
-        private static int ikkunan_korkeus = 400;
-        private static int kentän_leveys = 2200;
+        public const int IKKUNAN_LEVEYS = 700;
+        public const int IKKUNAN_KORKEUS = 400;
+        public const int KENTÄN_LEVEYS = 2200;
 
         /// <summary>
         /// Kuinka kauas pelaajasta vihulaisia voi lahdata
@@ -116,6 +117,8 @@ namespace Morte
         public Action TapahtumaResetoi;
         public Action TapahtumaKäynnistä;
 
+        public Action TapahtumaGameOver;
+
         /// <summary>
         /// Jypelin instanssi. Muutetaan se muutaman näppäimen säästämiseksi tässä oikeaan luokkaan.
         /// </summary>
@@ -127,7 +130,7 @@ namespace Morte
 
         protected Timer _VihuSpawner;
 
-        private Window paussiRuutu;
+        private Ikkuna PaussiRuutu;
 
         private Kursori Kursori;
         public Kamerointi Kamera { get; set; }
@@ -148,20 +151,20 @@ namespace Morte
 
         protected Layer HUD;
 
-        public Jypeli.Effects.ParticleSystem Veriroiske;
+        public Bloodenstain Veriroiske;
 
         protected Image LootBoxSprite;
 
         protected VideoWädgetti IntroVideo;
         protected Task PelinLataaja;
 
-        protected ScoreList Pistelista = new ScoreList(10, false, 0);
         protected Tweener Tweetteri = new Tweener();
 
         /// <summary>
         /// Verkko-osoite, johon tulokset lähetetään / josta ne ladataan.
         /// </summary>
-        private string TulostauluURL = "https://morte-mysteria.appspot.com/scores.php";
+        //private string TulospalveluURL = "https://morte-mysteria.appspot.com/scores.php";
+        private string TulospalveluURL = "http://localhost:8080/scores.php";
 
         /// <summary>
         /// Super secret special -avain, jota käytetään sallimaan vain "oikeat" pyynnöt tulostauluun.
@@ -169,7 +172,12 @@ namespace Morte
         /// <remarks>
         /// Pitäisi piilottaa, C# ei ole kovin luotettava tällaisessa.
         /// </remarks>
-        private string TulostauluAvain = "Yksi lensi yli käenpesän.";
+        private string TulospalveluAvain = "Yksi lensi yli käenpesän.";
+
+        protected ScoresPHP Tulospalvelu { get; set; }
+
+        public string NimiMerkki { get; set; }
+
 
         private bool _AlkuNäyttöOhi;
         private bool _LopetaAlkuNäyttö;
@@ -186,9 +194,9 @@ namespace Morte
         {
             base.Begin();
 
-            SetWindowSize(ikkunan_leveys, ikkunan_korkeus, false);
-            Screen.Width = ikkunan_leveys;
-            Screen.Height = ikkunan_korkeus;
+            SetWindowSize(IKKUNAN_LEVEYS, IKKUNAN_KORKEUS, false);
+            Screen.Width = IKKUNAN_LEVEYS;
+            Screen.Height = IKKUNAN_KORKEUS;
 
 #if DEBUG
             DebugKeyEnabled = true;
@@ -211,9 +219,13 @@ namespace Morte
             TapahtumaKäynnistä += AsetaOhjain;
             TapahtumaKäynnistä += KäynnistäVihuSpawner;
 
-            PelinLataaja = Task.Factory.StartNew(LataaPeli);
+            TapahtumaGameOver += TallennaPisteet;
+            TapahtumaGameOver += () => MusiikkiInstanssi.Pysäytä();
 
             TapahtumaAlusta?.Invoke();
+
+            PelinLataaja = Task.Factory.StartNew(LataaPeli);
+
 
             // Peli käynnistetään alkunäyttöjen päätyttyä.
             AlkuNäyttö();
@@ -226,13 +238,12 @@ namespace Morte
         /// </summary>
         public void AlustaTaso()
         {
-            Level.Height = ikkunan_korkeus;
-            Level.Width = kentän_leveys;
+            Level.Height = IKKUNAN_KORKEUS;
+            Level.Width = KENTÄN_LEVEYS;
 
             var maa = Level.CreateBottomBorder();
             maa.Tag = "maa";
 
-            // Aseta maa
             Gravity = new Vector(0, -700);
         }
 
@@ -255,9 +266,11 @@ namespace Morte
         /// <summary>
         /// Lataa omat objektit peliin, ideaalisti alkunäyttöjen aikana.
         /// </summary>
-        /// TODO: Restructuroi
         public void LataaShitit()
         {
+            /// Todo: Hae / tallenna nimimerkki jostain
+            NimiMerkki = Environment.UserName;
+
             Kursori = new Kursori()
             {
                 IsVisible = false
@@ -269,8 +282,7 @@ namespace Morte
             Veriroiske = new Bloodenstain(LoadImage("veripisara"), 100)
             {
                 MinScale = 6,
-                MaxScale = 12,
-                Gravity = Gravity
+                MaxScale = 12
             };
             Add(Veriroiske, TASO_EDUSTA);
             
@@ -282,6 +294,9 @@ namespace Morte
             Add(Kamera, TASO_EDUSTA);
 
             LootBoxSprite = Game.LoadImage(SPRITE_LOOTBOX);
+
+            Tulospalvelu = new ScoresPHP(TulospalveluURL);
+            Tulospalvelu.Token = TulospalveluAvain;
 
         }
 
@@ -415,8 +430,6 @@ namespace Morte
             Keyboard.Listen(Key.Right, ButtonState.Released, PysäytäPelaaja, null, Pelaaja);
             Keyboard.Listen(Key.D, ButtonState.Down, LiikutaPelaajaa, null, Pelaaja, OIKEA);
             Keyboard.Listen(Key.D, ButtonState.Released, PysäytäPelaaja, null, Pelaaja);
-
-            Keyboard.Listen(Key.H, ButtonState.Released, () => AvaaPistelista(), "Avaa parhaiden pisteiden lista");
 
             // Aseta ase
             Keyboard.Listen(Key.Space, ButtonState.Pressed, LaukaiseAse, "Laukaise Erikoisase");
@@ -818,29 +831,13 @@ namespace Morte
 
 #endregion
 
-        public void AvaaPistelista(bool tallennetaan=false)
+        /// <summary>
+        /// Tallenna pisteet pelin loputtua, ja näytä leaderboards.
+        /// </summary>
+        protected void TallennaPisteet()
         {
-            
-            var old_kursori = Kursori.IsVisible;
-            var old_Pause = IsPaused;
-
-            Kursori.IsVisible = false;
-            IsPaused = true;
-
-            //paussiRuutu?.Destroy();
-
-            HighScoreWindow ranking_ikkuna = new HighScoreWindow(
-                             "Parhaat pisteet",
-                             "Kerro nimesi:",
-                             Pistelista, tallennetaan ? Pisteet : 0 )
-            {
-                Color = new Color(0, 0, 0, 0.8)
-            };
-
-            ranking_ikkuna.Message.TextColor = new Color(255, 255, 0);
-            
-            ranking_ikkuna.Closed += delegate(Window w) { IsPaused = old_Pause; Kursori.IsVisible = old_kursori; };
-            HUD.Objects.Add(ranking_ikkuna);
+            if (Pisteet > 0)
+                NäytäSijoitukset(true);
         }
 
         /// <summary>
@@ -853,47 +850,27 @@ namespace Morte
 
             if (IsPaused)
             {
+                PaussiRuutu?.Destroy();
                 Kursori.IsVisible = false;
-                paussiRuutu?.Destroy();
-                paussiRuutu = new Window(Screen.Width, Screen.Height / 4)
-                {
-                    Color = new Color(0, 0, 0, 0.8),
-                };
 
-                //paussiRuutu.Add(container);
+                PaussiIkkuna paussiruutu = new PaussiIkkuna();
+                PaussiRuutu = paussiruutu;
+
+                paussiruutu.PaussiNappi.Clicked += Paussi;
+                paussiruutu.PisteetNappi.Clicked += () => NäytäSijoitukset(false);
+                paussiruutu.LopetaNappi.Clicked += ConfirmExit;
                 
-                var rivit = new Widget(new VerticalLayout() { Spacing = 5.0 })
-                {
-                    Color = Color.Transparent
-                };
-
-                rivit.Add(new Label("Paussi") {
-                    TextColor = new Color(204,204,204)
-                });
-                
-                var lopeta = new PushButton("Jatka")
-                {
-                    TextScale = new Vector(0.9, 0.9),
-                    TextColor = Color.Black,
-                    Color = new Color(227, 0, 0)
-                };
-
-                lopeta.Clicked += Paussi;
-                rivit.Add(lopeta);
-
-                paussiRuutu.Add(rivit);
-                
-                HUD.Objects.Add(paussiRuutu);
+                HUD.Objects.Add(PaussiRuutu);
 
                 MusiikkiInstanssi.Pysäytä();
 
-                Keyboard.Listen(Key.P, ButtonState.Released, Paussi, "Jatka peliä").InContext(paussiRuutu);
-                Keyboard.Listen(Key.Escape, ButtonState.Released, Paussi, "Jatka peliä").InContext(paussiRuutu);
+                Keyboard.Listen(Key.P, ButtonState.Released, Paussi, "Jatka peliä").InContext(PaussiRuutu);
+                Keyboard.Listen(Key.Escape, ButtonState.Released, Paussi, "Jatka peliä").InContext(PaussiRuutu);
             }
             else
             {
                 Kursori.IsVisible = true;
-                paussiRuutu.Destroy();
+                PaussiRuutu.Destroy();
                 MusiikkiInstanssi.Käynnistä();
             }
 
@@ -902,59 +879,77 @@ namespace Morte
         public void GameOver()
         {
             IsPaused = true;
+
             Kursori.IsVisible = false;
+            PaussiRuutu?.Destroy();
 
-            paussiRuutu?.Destroy();
-            paussiRuutu = new Window(Screen.Width, Screen.Height / 4)
-            {
-                Color = new Color(0, 0, 0, 0.8),
-            };
+            var gameover = new GameOverIkkuna();
+            PaussiRuutu = gameover;
 
-            var rivit = new Widget(new VerticalLayout() { Spacing = 10 }){
-                Color = Color.Transparent
-            };
-            rivit.Add(new Label("Game Over")
-            {
-                Color = Color.Transparent,
-                TextColor = new Color(204, 204, 204)
-            });
+            gameover.UusipeliNappi.Clicked += delegate () { PaussiRuutu?.Destroy(); UusiPeli(); };
+            gameover.PisteetNappi.Clicked += () => NäytäSijoitukset(false);
+            gameover.LopetaNappi.Clicked += ConfirmExit;
 
-            var napit = new Widget(new HorizontalLayout() { Spacing = 10.0 })
-            {
-                Color = Color.Transparent
-            };
+            HUD.Objects.Add(PaussiRuutu);
 
-            var nappi_uusi = new PushButton("Uusi peli")
-            {
-                TextScale = new Vector(0.9, 0.9),
-                TextColor = Color.Black,
-                Color = new Color(230, 200, 200),
-            };
-            var nappi_pisteet = new PushButton("Pisteet")
-            {
-                TextScale = new Vector(0.9, 0.9),
-                TextColor = Color.Black,
-                Color = new Color(230, 230, 0)
-            };
-            var nappi_lopeta = new PushButton("Lopeta") {
-                TextScale = new Vector(0.9, 0.9),
-                TextColor = Color.Black,
-                Color = new Color(230, 0, 0)
-            };
-
-            nappi_uusi.Clicked += delegate () { paussiRuutu?.Destroy(); UusiPeli(); };
-            nappi_pisteet.Clicked += delegate() { AvaaPistelista(); };
-            nappi_lopeta.Clicked += Exit; 
-
-            napit.Add(nappi_uusi);
-            napit.Add(nappi_pisteet);
-            napit.Add(nappi_lopeta);
-
-            rivit.Add(napit);
-            paussiRuutu.Add(rivit);
-
-            HUD.Objects.Add(paussiRuutu);
+            TapahtumaGameOver?.Invoke();
         }
 
+
+        public void NäytäSijoitukset(bool tallenna=false)
+        {
+            ScorePHPYhteys yhteys;
+            if (tallenna && Pisteet > 0)
+            {
+                yhteys = Tulospalvelu.LuoLisääTulosKysely(NimiMerkki, Pisteet);
+            }
+            else
+            {
+                yhteys = Tulospalvelu.LuoSijoitusKysely(Pisteet);
+            }
+
+            var ladataan_ikkuna = new LadataanIkkuna();
+            HUD.Objects.Add(ladataan_ikkuna);
+
+            ladataan_ikkuna.PeruutaNappi.Clicked += delegate () {
+                yhteys.Peruuta();
+                ladataan_ikkuna.Destroy();
+            };
+
+            yhteys.Suoritettu += delegate (List<ScoreItem> tulokset)
+            {
+                Debug.WriteLine("Tulokset ladattu: {0}", tulokset);
+                ladataan_ikkuna.Destroy();
+                NäytäTuloksetIkkuna(tulokset);
+            };
+
+            yhteys.Epäonnistui += delegate ()
+            {
+                MessageDisplay.Add("Tuloksien lataus epäonnistui");
+                ladataan_ikkuna.Destroy();
+            };
+
+            yhteys.Kysele();
+        }
+
+
+        public void NäytäTuloksetIkkuna(List<ScoreItem> tulokset)
+        {
+            var pisteikkuna = new PisteIkkuna(tulokset);
+            if (Pisteet > 0)
+            {
+                string title = String.Format(RandomGen.SelectOne<string>(
+                    "Drunkard of {1} Whines",
+                    "Prayer of {1} Kids",
+                    "Slayer of {1} Asses",
+                    "Tapper of {1} Steps",
+                    "Boss of {1} Me",
+                    "Shearer of {1} Sheeps"
+                    ), Pisteet);
+
+                pisteikkuna.Otsikko.Text = String.Format("All hail King {0}, {1}", NimiMerkki, title);
+            }
+            HUD.Objects.Add(pisteikkuna);
+        }
     }
 }
