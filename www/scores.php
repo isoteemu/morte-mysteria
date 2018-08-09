@@ -108,7 +108,7 @@ function hae_tulokset($limit = SIJOITUSTEN_MÄÄRÄ, $sijoitus = 0, $ts = null) 
     $q->execute();
     
     $scores = array();
-    $i = 1;
+    $i = $offset+1;
 
     while ($row = $q->fetch()) {
         $scores[] = array(

@@ -76,11 +76,11 @@ namespace Morte
         /// <summary>
         /// Lista vihulaisista. Uutta vihua luotaessa näistä poimitaan yksi.
         /// </summary>
-        public List<String> Vihulista = new List<String>{
-            "Morte.Öggiäiset.Käärme",
-            "Morte.Öggiäiset.Hullu",
-            "Morte.Öggiäiset.Lokki",
-            "Morte.Öggiäiset.Koura",
+        public List<(double, string)> Vihulista = new List<(double, string)>(){
+            (1, "Morte.Öggiäiset.Käärme"),
+            (1, "Morte.Öggiäiset.Hullu"),
+            (1, "Morte.Öggiäiset.Lokki"),
+            (0.2, "Morte.Öggiäiset.Koura"),
         };
 
         /// <summary>
@@ -91,7 +91,7 @@ namespace Morte
             (0.2, "Morte.Loot.Hattu"),
             (0.1, "Morte.Loot.Viini"),
             (0.1, "Morte.Loot.Sieni"),
-            (0.15, "Morte.Loot.Kannabis"),
+            (0.2, "Morte.Loot.Kannabis"),
             (0.05, "Morte.Loot.Saha"),
         };
 
@@ -163,8 +163,8 @@ namespace Morte
         /// <summary>
         /// Verkko-osoite, johon tulokset lähetetään / josta ne ladataan.
         /// </summary>
-        //private string TulospalveluURL = "https://morte-mysteria.appspot.com/scores.php";
-        private string TulospalveluURL = "http://localhost:8080/scores.php";
+        private string TulospalveluURL = "https://morte-mysteria.appspot.com/scores.php";
+        //private string TulospalveluURL = "http://localhost:8080/scores.php";
 
         /// <summary>
         /// Super secret special -avain, jota käytetään sallimaan vain "oikeat" pyynnöt tulostauluun.
@@ -213,11 +213,11 @@ namespace Morte
 
             TapahtumaResetoi += AlustaAseet;
             TapahtumaResetoi += AlustaMusiikki;
-            TapahtumaResetoi += AlustaVihuSpawner;
+            TapahtumaResetoi += ResetoiPisteet;
             TapahtumaResetoi += ResetoiPelaaja;
+            TapahtumaResetoi += AlustaVihuSpawner;
 
             TapahtumaKäynnistä += AsetaOhjain;
-            TapahtumaKäynnistä += KäynnistäVihuSpawner;
 
             TapahtumaGameOver += TallennaPisteet;
             TapahtumaGameOver += () => MusiikkiInstanssi.Pysäytä();
@@ -402,15 +402,18 @@ namespace Morte
                 // Interval asetetaan VihuSpawnerissa.
             }
 
-            Avg_Lifetime = TimeSpan.FromSeconds(VIHUSPAWNER_VIIVE);
-        }
+            TapahtumaGameOver += delegate ()
+            {
+                _VihuSpawner.Stop();
+            };
 
-        void KäynnistäVihuSpawner()
-        {
+            Avg_Lifetime = TimeSpan.FromSeconds(VIHUSPAWNER_VIIVE);
 #if (!DEBUG)
             VihuSpawner();
 #endif
+
         }
+
 
         /// <summary>
         /// Asettaa ohjaimet
@@ -447,7 +450,7 @@ namespace Morte
             // Pikanäppäimet vihujen spawnaamiseen.
             for (var i = 0; i < Math.Min(Vihulista.Count(), 9); i++)
             {
-                Keyboard.Listen(Key.D1 + i, ButtonState.Released, AmpiaisTehdas, "Uusi vihu " + Vihulista[i], i);
+                Keyboard.Listen(Key.D1 + i, ButtonState.Released, AmpiaisTehdas, "Uusi vihu " + Vihulista[i].Item2, i);
             }
 
             for (var i = 0; i < Math.Min(Lootboxit.Count(), 9); i++)
@@ -574,8 +577,6 @@ namespace Morte
                     it[i].Destroy();
             }
 
-            Manattu = 0;
-
             TapahtumaResetoi?.Invoke();
 
             IsPaused = false;
@@ -611,6 +612,12 @@ namespace Morte
             Risti.Päivitä();
 
             //Pelaaja.AngularVelocity = -8;
+        }
+
+        void ResetoiPisteet()
+        {
+            Pisteet = 0;
+            Manattu = 0;
         }
 
         void LiikutaPelaajaa(Öggiäinen pelaaja, int suunta)
@@ -660,7 +667,7 @@ namespace Morte
             AmpiaisTehdas();
 
             double odotus;
-            var avg = new TimeSpan(Avg_Lifetime.Ticks / 10 * 8);
+            var avg = new TimeSpan(Avg_Lifetime.Ticks / 10 * 7);
             odotus = (float)avg.Seconds + ((float)avg.Milliseconds / 1000);
 
             _VihuSpawner.Interval = Math.Min((odotus > 0) ? odotus : VIHUSPAWNER_VIIVE, VIHUSPAWNER_VIIVE);
@@ -674,10 +681,18 @@ namespace Morte
         /// </summary>
         public void AmpiaisTehdas(int vihu_idx=-1)
         {
-            if(vihu_idx == -1)
-                vihu_idx = RandomGen.NextInt(Vihulista.Count());
+            if (vihu_idx == -1)
+            {
+                /// Arvo jokin vihulainen
+                while (true)
+                {
+                    vihu_idx = RandomGen.NextInt(Vihulista.Count());
+                    if (Vihulista[vihu_idx].Item1 > RandomGen.NextDouble(0.0, 1.0))
+                        break;
+                }
+            }
 
-            var vihu_str = Vihulista[vihu_idx];
+            var vihu_str = Vihulista[vihu_idx].Item2;
             Type t = Type.GetType(vihu_str);
             var vihu = (Vihulainen) Activator.CreateInstance(t);
 
@@ -939,12 +954,12 @@ namespace Morte
             if (Pisteet > 0)
             {
                 string title = String.Format(RandomGen.SelectOne<string>(
-                    "Drunkard of {1} Whines",
-                    "Prayer of {1} Kids",
-                    "Slayer of {1} Asses",
-                    "Tapper of {1} Steps",
-                    "Boss of {1} Me",
-                    "Shearer of {1} Sheeps"
+                    "Drunkard of {0} Whines",
+                    "Prayer of {0} Kids",
+                    "Slayer of {0} Asses",
+                    "Tapper of {0} Steps",
+                    "Boss of {0} Me",
+                    "Shearer of {0} Sheeps"
                     ), Pisteet);
 
                 pisteikkuna.Otsikko.Text = String.Format("All hail King {0}, {1}", NimiMerkki, title);
