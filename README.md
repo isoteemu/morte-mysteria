@@ -10,7 +10,7 @@ Pelissä pappi on joutunut helvettiin ehtoollisviinat juotuaan, ja joutuu selviy
 
 ## Nuorten peliohjelmointikurssin suorittajien kannalta kiinnostavia piirteitä
 
-Alkunäyttö; Lootboxi; Oma hiiren kursori; Dynaaminen musiikki; Verkossa olevat tuloslistat; Tweenausta ja dynaamista sheidausta; Partikkeliveri;
+Alkunäyttö; Lootboxi; Oma hiiren kursori; Dynaaminen musiikki; Verkossa olevat tuloslistat; Tweenausta ja dynaamista sheidausta; Partikkeliveri; Paussi;
 
  - Pelin alkunäytöt ovat windows media file tiedosto, joka piirrettään XNAlla jypeli objektin tekstuuriin. [``Morte / Wädgetti / VideoWädgetti.cs``](https://github.com/isoteemu/morte-mysteria/blob/master/morte/Morte/W%C3%A4dgetti/VideoW%C3%A4dgetti.cs). Video-elemettejä voidaan käyttää kuten mitä tahansa jypeli-elementtiä, mutta kuva on korvattu videolla.
 
@@ -113,6 +113,29 @@ Alkunäyttö; Lootboxi; Oma hiiren kursori; Dynaaminen musiikki; Verkossa olevat
     ```
 
 - Risti joka muuttuu ristiksi väärinpäin pelaajan teveyden vähentyessä [``morte / Morte / Wädgetti / Risti.cs``](https://github.com/isoteemu/morte-mysteria/blob/master/morte/Morte/W%C3%A4dgetti/Risti.cs). Risti kahdesta objektista, pystypalkista joka on jypelin `Widget`, ja lapsielementistä joka muodostaa vaakapalkin. Luokka seuraa sidotun öggiäisen teveyttä, ja liikuttaa vaakapalkkia suhteessa terveydentilaan.
+
+- Paussiruutu [``morte / morte.cs[861]``](https://github.com/isoteemu/morte-mysteria/blob/74f962fe895cd5d24a3902c62763083d47e275aa/morte/morte.cs#L861). Jypeli itsessään tarjoaa helpon paussi-toiminnallisuuden, mutta dokumentoinnin ollessa puuttellista ja "jypeli paussi" ollessa googlatuimpia jypeli -termejä sen käyttö toimii näin helposti: `IsPaused = True;`. `IsPaused` attribuutin ollessa `True`, jypeli päivittää ainoastaan Widget -elementtejä. Pausen toteuttaminen `[ESC]` näppäintä painettaessa:
+    ```c#
+    public override void Begin()
+        // Liitä Paussi funktion kutsu näppäimen painallukseen.
+        Keyboard.Listen(Key.Escape, ButtonState.Released, Paussi, "Paussita peli");
+
+        // [--]
+    }
+
+    protected void Paussi() {
+        // Vaihtaa arvon käänteiseksi. True -> False ja False -> True.
+        IsPaused = !IsPaused;
+
+        if (IsPaused) {
+            // Peli on paussilla, luo valikko, whatnot
+            MessageDisplay.Add("Peli on paussilla");
+        } else {
+            // Paussista poistutaan. tuhoa valikko, whatnot
+            MessageDisplay.Add("Peli jatkuu.");
+        }
+    }
+    ```
 
 ## Lootitemeitä
     
